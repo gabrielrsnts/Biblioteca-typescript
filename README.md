@@ -7,7 +7,8 @@ class Livro {
   +string id
   +string titulo
   +string autor
-  +Categoria categoria
+  +number anoPublicacao
+  +CategoriaLivro categoria
   +StatusLivro status
 }
 
@@ -15,32 +16,52 @@ class Usuario {
   +string id
   +string nome
   +string email
-  +TipoUsuario tipo
+  +number telefone
+  +string matricula
 }
 
 class Emprestimo {
   +string id
-  +string livroId
-  +string usuarioId
+  +Livro livro
+  +Usuario usuario
   +Date dataEmprestimo
-  +Date? dataDevolucao
+  +Date dataDevolucaoPrevista
+  +Date dataDevolucaoReal
   +StatusEmprestimo status
 }
 
-class Categoria {
+class CategoriaLivro {
   <<enum>>
+  +FICCAO_CIENTIFICA
+  +ROMANCE
+  +FANTASIA
+  +BIOGRAFIA
+  +HISTORIA
+  +TECNOLOGIA
+  +CIENCIAS
+  +LITERATURA
+  +AUTOAJUDA
+  +EDUCACIONAL
+  +INFANTIL
+  +POESIA
+  +MANGA
+  +QUADRINHOS
 }
 
 class StatusLivro {
   <<enum>>
+  +DISPONIVEL
+  +EMPRESTADO
 }
 
-class TipoUsuario {
-  <<enum>>
-}
 
 class StatusEmprestimo {
   <<enum>>
+  +EM_ANDAMENTO
+  +DEVOLVIDO
+  +ATRASADO
+  +RENOVADO
+  +CANCELADO
 }
 
 Usuario "1" --> "*" Emprestimo : realiza
