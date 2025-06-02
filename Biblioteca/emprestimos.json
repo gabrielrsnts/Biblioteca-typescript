@@ -1,0 +1,24 @@
+[
+  {
+    "id": 1,
+    "livro": {
+      "id": 1,
+      "titulo": "O Senhor dos Anéis",
+      "autor": "J.R.R. Tolkien",
+      "anoPublicacao": 1954,
+      "status": "DISPONIVEL",
+      "categoria": "FANTASIA"
+    },
+    "usuario": {
+      "id": 1,
+      "matricula": "MAT001",
+      "nome": "João Silva",
+      "email": "joao@email.com",
+      "telefone": "123456789"
+    },
+    "dataEmprestimo": "2024-01-15T00:00:00.000Z",
+    "dataDevolucaoPrevista": "2024-01-30T00:00:00.000Z",
+    "dataDevolucaoReal": null,
+    "status": "EM_ANDAMENTO"
+  }
+]
