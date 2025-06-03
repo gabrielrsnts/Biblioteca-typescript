@@ -7,7 +7,6 @@ export class LivroRepository {
 
     async criar(livro: Livro): Promise<Livro | null> {
         const dados = {
-            id: livro.getId(),
             titulo: livro.getTitulo(),
             autor: livro.getAutor(),
             ano_publicacao: livro.getAnoPublicacao(),

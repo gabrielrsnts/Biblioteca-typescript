@@ -16,7 +16,6 @@ export class EmprestimoRepository {
 
     async criar(emprestimo: Emprestimo): Promise<Emprestimo | null> {
         const dados = {
-            id: emprestimo.getId(),
             livro_id: emprestimo.getLivro().getId(),
             usuario_id: emprestimo.getUsuario().getId(),
             data_emprestimo: emprestimo.getDataEmprestimo().toISOString(),

@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1,
+    "titulo": "O Senhor dos Anéis",
+    "autor": "J.R.R. Tolkien",
+    "anoPublicacao": 1954,
+    "status": "DISPONIVEL",
+    "categoria": "FANTASIA"
+  },
+  {
+    "id": 2,
+    "titulo": "Harry Potter",
+    "autor": "J.K. Rowling",
+    "anoPublicacao": 1997,
+    "status": "DISPONIVEL",
+    "categoria": "FANTASIA"
+  }
+]

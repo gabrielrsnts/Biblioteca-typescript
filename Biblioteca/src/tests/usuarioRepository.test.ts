@@ -1,83 +1,81 @@
 import { UsuarioRepository } from '../repositories/UsuarioRepository';
 import Usuario from '../model/Usuario';
+import { supabase } from '../config/supabase';
 
-async function testarRepositorioUsuarios() {
-    console.log('Iniciando testes do repositório de usuários...\n');
-    
-    const repo = new UsuarioRepository();
-    
-    try {
-        // Teste de criação
-        console.log('1. Testando criação de usuário...');
-        const novoUsuario = new Usuario(
-            1,
-            'MAT001',
-            'João Silva',
-            'joao.silva@email.com',
-            '(11) 98765-4321'
-        );
+describe('UsuarioRepository', () => {
+    let repository: UsuarioRepository;
+    let usuarioTeste: Usuario;
+
+    beforeAll(async () => {
+        repository = new UsuarioRepository();
         
-        const usuarioSalvo = await repo.criar(novoUsuario);
-        if (usuarioSalvo) {
-            console.log('✓ Usuário criado com sucesso');
-            console.log('Dados do usuário:', {
-                id: usuarioSalvo.getId(),
-                matricula: usuarioSalvo.getMatricula(),
-                nome: usuarioSalvo.getNome(),
-                email: usuarioSalvo.getEmail(),
-                telefone: usuarioSalvo.getTelefone()
-            });
-        } else {
-            throw new Error('Falha ao criar usuário');
-        }
+        // Limpar a tabela antes dos testes
+        await supabase.from('usuarios').delete().neq('id', 0);
+    });
 
-        // Teste de busca
-        console.log('\n2. Testando busca de usuário...');
-        const usuarioEncontrado = await repo.buscarPorId(usuarioSalvo.getId());
-        if (usuarioEncontrado) {
-            console.log('✓ Usuário encontrado com sucesso');
-            console.log('Dados do usuário:', {
-                id: usuarioEncontrado.getId(),
-                matricula: usuarioEncontrado.getMatricula(),
-                nome: usuarioEncontrado.getNome(),
-                email: usuarioEncontrado.getEmail(),
-                telefone: usuarioEncontrado.getTelefone()
-            });
-        } else {
-            throw new Error('Falha ao buscar usuário');
-        }
+    beforeEach(() => {
+        const timestamp = new Date().getTime();
+        usuarioTeste = new Usuario(
+            null as any,
+            `20230001${timestamp}`,
+            'Maria Santos',
+            `maria${timestamp}@email.com`,
+            '987654321'
+        );
+    });
 
-        // Teste de atualização
-        console.log('\n3. Testando atualização de usuário...');
-        usuarioEncontrado.setTelefone('(11) 99999-9999');
-        const atualizou = await repo.atualizar(usuarioEncontrado);
-        if (atualizou) {
-            console.log('✓ Usuário atualizado com sucesso');
-        } else {
-            throw new Error('Falha ao atualizar usuário');
-        }
+    it('deve criar um novo usuário', async () => {
+        const usuarioSalvo = await repository.criar(usuarioTeste);
+        expect(usuarioSalvo).not.toBeNull();
+        expect(usuarioSalvo?.getNome()).toBe('Maria Santos');
+        expect(usuarioSalvo?.getId()).toBeGreaterThan(0);
+    });
 
-        // Teste de listagem
-        console.log('\n4. Testando listagem de usuários...');
-        const todosUsuarios = await repo.buscarTodos();
-        console.log('✓ Usuários listados com sucesso');
-        console.log('Total de usuários:', todosUsuarios.length);
+    it('deve buscar um usuário por ID', async () => {
+        const usuarioSalvo = await repository.criar(usuarioTeste);
+        if (!usuarioSalvo) throw new Error('Falha ao criar usuário para teste');
 
-        // Teste de deleção
-        console.log('\n5. Testando deleção de usuário...');
-        const deletou = await repo.deletar(usuarioSalvo.getId());
-        if (deletou) {
-            console.log('✓ Usuário deletado com sucesso');
-        } else {
-            throw new Error('Falha ao deletar usuário');
-        }
+        const usuarioEncontrado = await repository.buscarPorId(usuarioSalvo.getId());
+        expect(usuarioEncontrado).not.toBeNull();
+        expect(usuarioEncontrado?.getNome()).toBe('Maria Santos');
+    });
 
-    } catch (error) {
-        console.error('✗ Erro durante os testes:', error);
-    }
+    it('deve atualizar um usuário', async () => {
+        const usuarioSalvo = await repository.criar(usuarioTeste);
+        if (!usuarioSalvo) throw new Error('Falha ao criar usuário para teste');
 
-    console.log('\nTestes concluídos!');
-}
+        usuarioSalvo.setNome('Maria Silva Santos');
+        const atualizado = await repository.atualizar(usuarioSalvo);
+        expect(atualizado).toBe(true);
 
-// Executar os testes
-testarRepositorioUsuarios(); 
+        const usuarioAtualizado = await repository.buscarPorId(usuarioSalvo.getId());
+        expect(usuarioAtualizado?.getNome()).toBe('Maria Silva Santos');
+    });
+
+    it('deve deletar um usuário', async () => {
+        const usuarioSalvo = await repository.criar(usuarioTeste);
+        if (!usuarioSalvo) throw new Error('Falha ao criar usuário para teste');
+
+        const deletado = await repository.deletar(usuarioSalvo.getId());
+        expect(deletado).toBe(true);
+
+        const usuarioEncontrado = await repository.buscarPorId(usuarioSalvo.getId());
+        expect(usuarioEncontrado).toBeNull();
+    });
+
+    it('deve buscar todos os usuários', async () => {
+        await repository.criar(usuarioTeste);
+        
+        const outroUsuario = new Usuario(
+            0,
+            '20230002',
+            'João Silva',
+            'joao@email.com',
+            '123456789'
+        );
+        await repository.criar(outroUsuario);
+
+        const usuarios = await repository.buscarTodos();
+        expect(usuarios.length).toBeGreaterThanOrEqual(2);
+    });
+}); 

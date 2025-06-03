@@ -6,7 +6,6 @@ export class UsuarioRepository {
 
     async criar(usuario: Usuario): Promise<Usuario | null> {
         const dados = {
-            id: usuario.getId(),
             matricula: usuario.getMatricula(),
             nome: usuario.getNome(),
             email: usuario.getEmail(),
