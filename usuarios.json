@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "matricula": "MAT001",
+    "nome": "João Silva",
+    "email": "joao@email.com",
+    "telefone": "123456789"
+  },
+  {
+    "id": 2,
+    "matricula": "MAT002",
+    "nome": "Maria Santos",
+    "email": "maria@email.com",
+    "telefone": "987654321"
+  }
+]

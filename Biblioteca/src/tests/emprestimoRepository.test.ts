@@ -6,125 +6,116 @@ import Livro from '../model/Livro';
 import Usuario from '../model/Usuario';
 import CategoriaLivro from '../model/CategoriaLivro';
 import StatusEmprestimo from '../model/StatusEmprestimo';
+import { supabase } from '../config/supabase';
 
-async function testarRepositorioEmprestimos() {
-    console.log('Iniciando testes do repositório de empréstimos...\n');
-    
-    const emprestimoRepo = new EmprestimoRepository();
-    const livroRepo = new LivroRepository();
-    const usuarioRepo = new UsuarioRepository();
-    
-    try {
-        // Primeiro, vamos criar um livro e um usuário para usar nos testes
-        console.log('Preparando dados de teste...');
+describe('EmprestimoRepository', () => {
+    let repository: EmprestimoRepository;
+    let livroRepo: LivroRepository;
+    let usuarioRepo: UsuarioRepository;
+    let livroTeste: Livro;
+    let usuarioTeste: Usuario;
+    let emprestimoTeste: Emprestimo;
+
+    beforeAll(async () => {
+        repository = new EmprestimoRepository();
+        livroRepo = new LivroRepository();
+        usuarioRepo = new UsuarioRepository();
         
-        const id = Math.floor(Math.random() * 1000000) + 1;
-        const matricula = `MAT${String(id).padStart(6, '0')}`;
-        const email = `usuario.${id}@email.com`;
-        
-        const livro = await livroRepo.criar(new Livro(
-            id,
+        // Limpar as tabelas antes dos testes
+        await supabase.from('emprestimos').delete().neq('id', 0);
+        await supabase.from('livros').delete().neq('id', 0);
+        await supabase.from('usuarios').delete().neq('id', 0);
+
+        // Criar livro e usuário para os testes
+        livroTeste = new Livro(
+            null as any,
             'Dom Casmurro',
             'Machado de Assis',
             1899,
-            CategoriaLivro.LITERATURA
-        ));
+            CategoriaLivro.ROMANCE
+        );
+        livroTeste = await livroRepo.criar(livroTeste) as Livro;
 
-        const usuario = await usuarioRepo.criar(new Usuario(
-            id + 1,
-            matricula,
+        const timestamp = new Date().getTime();
+        usuarioTeste = new Usuario(
+            null as any,
+            `20230001${timestamp}`,
             'Maria Santos',
-            email,
-            '(11) 98765-4321'
-        ));
+            `maria${timestamp}@email.com`,
+            '987654321'
+        );
+        usuarioTeste = await usuarioRepo.criar(usuarioTeste) as Usuario;
+    });
 
-        if (!livro || !usuario) {
-            throw new Error('Falha ao criar livro ou usuário para teste');
-        }
-
-        // Teste de criação
-        console.log('\n1. Testando criação de empréstimo...');
+    beforeEach(() => {
         const dataEmprestimo = new Date();
         const dataDevolucaoPrevista = new Date();
-        dataDevolucaoPrevista.setDate(dataEmprestimo.getDate() + 15); // 15 dias de prazo
+        dataDevolucaoPrevista.setDate(dataEmprestimo.getDate() + 15);
 
-        const novoEmprestimo = new Emprestimo(
-            id + 2,
-            livro,
-            usuario,
+        emprestimoTeste = new Emprestimo(
+            null as any,
+            livroTeste,
+            usuarioTeste,
             dataEmprestimo,
             dataDevolucaoPrevista
         );
-        
-        const emprestimoSalvo = await emprestimoRepo.criar(novoEmprestimo);
-        if (emprestimoSalvo) {
-            console.log('✓ Empréstimo criado com sucesso');
-            console.log('Dados do empréstimo:', {
-                id: emprestimoSalvo.getId(),
-                livro: emprestimoSalvo.getLivro().getTitulo(),
-                usuario: emprestimoSalvo.getUsuario().getNome(),
-                dataEmprestimo: emprestimoSalvo.getDataEmprestimo(),
-                dataDevolucaoPrevista: emprestimoSalvo.getDataDevolucaoPrevista(),
-                status: emprestimoSalvo.getStatus()
-            });
-        } else {
-            throw new Error('Falha ao criar empréstimo');
-        }
+    });
 
-        // Teste de busca
-        console.log('\n2. Testando busca de empréstimo...');
-        const emprestimoEncontrado = await emprestimoRepo.buscarPorId(emprestimoSalvo.getId());
-        if (emprestimoEncontrado) {
-            console.log('✓ Empréstimo encontrado com sucesso');
-            console.log('Dados do empréstimo:', {
-                id: emprestimoEncontrado.getId(),
-                livro: emprestimoEncontrado.getLivro().getTitulo(),
-                usuario: emprestimoEncontrado.getUsuario().getNome(),
-                status: emprestimoEncontrado.getStatus()
-            });
-        } else {
-            throw new Error('Falha ao buscar empréstimo');
-        }
+    it('deve criar um novo empréstimo', async () => {
+        const emprestimoSalvo = await repository.criar(emprestimoTeste);
+        expect(emprestimoSalvo).not.toBeNull();
+        expect(emprestimoSalvo?.getId()).toBeGreaterThan(0);
+        expect(emprestimoSalvo?.getStatus()).toBe(StatusEmprestimo.EM_ANDAMENTO);
+    });
 
-        // Teste de atualização
-        console.log('\n3. Testando atualização de empréstimo...');
+    it('deve buscar um empréstimo por ID', async () => {
+        const emprestimoSalvo = await repository.criar(emprestimoTeste);
+        if (!emprestimoSalvo) throw new Error('Falha ao criar empréstimo para teste');
+
+        const emprestimoEncontrado = await repository.buscarPorId(emprestimoSalvo.getId());
+        expect(emprestimoEncontrado).not.toBeNull();
+        expect(emprestimoEncontrado?.getLivro().getTitulo()).toBe('Dom Casmurro');
+        expect(emprestimoEncontrado?.getUsuario().getNome()).toBe('Maria Santos');
+    });
+
+    it('deve atualizar um empréstimo', async () => {
+        const emprestimoSalvo = await repository.criar(emprestimoTeste);
+        if (!emprestimoSalvo) throw new Error('Falha ao criar empréstimo para teste');
+
         const dataDevolucao = new Date();
-        emprestimoEncontrado.realizarDevolucao(dataDevolucao);
+        emprestimoSalvo.realizarDevolucao(dataDevolucao);
         
-        const atualizou = await emprestimoRepo.atualizar(emprestimoEncontrado);
-        if (atualizou) {
-            console.log('✓ Empréstimo atualizado com sucesso');
-        } else {
-            throw new Error('Falha ao atualizar empréstimo');
-        }
+        const atualizado = await repository.atualizar(emprestimoSalvo);
+        expect(atualizado).toBe(true);
 
-        // Teste de listagem
-        console.log('\n4. Testando listagem de empréstimos...');
-        const todosEmprestimos = await emprestimoRepo.buscarTodos();
-        console.log('✓ Empréstimos listados com sucesso');
-        console.log('Total de empréstimos:', todosEmprestimos.length);
+        const emprestimoAtualizado = await repository.buscarPorId(emprestimoSalvo.getId());
+        expect(emprestimoAtualizado?.getStatus()).toBe(StatusEmprestimo.DEVOLVIDO);
+    });
 
-        // Teste de deleção
-        console.log('\n5. Testando deleção de empréstimo...');
-        const deletou = await emprestimoRepo.deletar(emprestimoSalvo.getId());
-        if (deletou) {
-            console.log('✓ Empréstimo deletado com sucesso');
-        } else {
-            throw new Error('Falha ao deletar empréstimo');
-        }
+    it('deve deletar um empréstimo', async () => {
+        const emprestimoSalvo = await repository.criar(emprestimoTeste);
+        if (!emprestimoSalvo) throw new Error('Falha ao criar empréstimo para teste');
 
-        // Limpando dados de teste
-        console.log('\nLimpando dados de teste...');
-        await livroRepo.deletar(livro.getId());
-        await usuarioRepo.deletar(usuario.getId());
-        console.log('✓ Dados de teste limpos com sucesso');
+        const deletado = await repository.deletar(emprestimoSalvo.getId());
+        expect(deletado).toBe(true);
 
-    } catch (error) {
-        console.error('✗ Erro durante os testes:', error);
-    }
+        const emprestimoEncontrado = await repository.buscarPorId(emprestimoSalvo.getId());
+        expect(emprestimoEncontrado).toBeNull();
+    });
 
-    console.log('\nTestes concluídos!');
-}
+    it('deve buscar todos os empréstimos', async () => {
+        await repository.criar(emprestimoTeste);
+        
+        const outroEmprestimo = new Emprestimo(
+            0,
+            livroTeste,
+            usuarioTeste,
+            new Date(),
+            new Date(Date.now() + 15 * 24 * 60 * 60 * 1000)
+        );
+        await repository.criar(outroEmprestimo);
 
-// Executar os testes
-testarRepositorioEmprestimos(); 
+        const emprestimos = await repository.buscarTodos();
+        expect(emprestimos.length).toBeGreaterThanOrEqual(2);
+    });
+}); 
