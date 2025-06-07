@@ -1,34 +1,87 @@
-import { logAction } from '../utils/logger';
+import { Request, Response } from 'express';
+import { EmprestimoService } from '../service/EmprestimoService';
 
 export class EmprestimoController {
-  private emprestimos: any[] = [];
+    constructor(private emprestimoService: EmprestimoService) {}
 
-  constructor(private livroCtrl: any, private usuarioCtrl: any) {}
+    async realizarEmprestimo(req: Request, res: Response) {
+        try {
+            const { livroId, usuarioId } = req.body;
+            
+            const emprestimo = await this.emprestimoService.realizarEmprestimo(livroId, usuarioId);
+            if (emprestimo) {
+                res.status(201).json(emprestimo);
+            } else {
+                res.status(400).json({ mensagem: 'Erro ao realizar empréstimo' });
+            }
+        } catch (error: any) {
+            if (error.message) {
+                res.status(400).json({ mensagem: error.message });
+            } else {
+                res.status(500).json({ mensagem: 'Erro interno do servidor' });
+            }
+        }
+    }
 
-  @logAction
-  emprestarLivro(idLivro: number, idUsuario: number) {
-    const livro = this.livroCtrl.getLivros().find((l: any) => l.id === idLivro);
-    const usuario = this.usuarioCtrl.buscarUsuario(idUsuario);
+    async realizarDevolucao(req: Request, res: Response) {
+        try {
+            const id = parseInt(req.params.id);
+            const devolvido = await this.emprestimoService.realizarDevolucao(id);
+            
+            if (devolvido) {
+                res.status(200).json({ mensagem: 'Devolução realizada com sucesso' });
+            } else {
+                res.status(400).json({ mensagem: 'Erro ao realizar devolução' });
+            }
+        } catch (error: any) {
+            if (error.message) {
+                res.status(400).json({ mensagem: error.message });
+            } else {
+                res.status(500).json({ mensagem: 'Erro interno do servidor' });
+            }
+        }
+    }
 
-    if (!livro || !livro.disponivel) return console.log('Livro não disponível.');
-    if (!usuario) return console.log('Usuário não encontrado.');
+    async buscarEmprestimoPorId(req: Request, res: Response) {
+        try {
+            const id = parseInt(req.params.id);
+            const emprestimo = await this.emprestimoService.buscarEmprestimoPorId(id);
+            
+            if (emprestimo) {
+                res.json(emprestimo);
+            } else {
+                res.status(404).json({ mensagem: 'Empréstimo não encontrado' });
+            }
+        } catch (error) {
+            res.status(500).json({ mensagem: 'Erro interno do servidor' });
+        }
+    }
 
-    this.emprestimos.push({ livroId: idLivro, usuarioId: idUsuario, data: new Date() });
-    this.livroCtrl.atualizarDisponibilidade(idLivro, false);
-    console.log('Empréstimo realizado!');
-  }
+    async listarEmprestimos(req: Request, res: Response) {
+        try {
+            const emprestimos = await this.emprestimoService.buscarTodosEmprestimos();
+            res.json(emprestimos);
+        } catch (error) {
+            res.status(500).json({ mensagem: 'Erro interno do servidor' });
+        }
+    }
 
-  @logAction
-  devolverLivro(idLivro: number) {
-    const emprestimo = this.emprestimos.find(e => e.livroId === idLivro);
-    if (!emprestimo) return console.log('Livro não estava emprestado.');
-    this.livroCtrl.atualizarDisponibilidade(idLivro, true);
-    console.log('Livro devolvido com sucesso!');
-  }
+    async buscarEmprestimosPorUsuario(req: Request, res: Response) {
+        try {
+            const usuarioId = parseInt(req.params.usuarioId);
+            const emprestimos = await this.emprestimoService.buscarEmprestimosPorUsuario(usuarioId);
+            res.json(emprestimos);
+        } catch (error) {
+            res.status(500).json({ mensagem: 'Erro interno do servidor' });
+        }
+    }
 
-  listarEmprestimos() {
-    this.emprestimos.forEach(e => {
-      console.log(`Livro ID: ${e.livroId} | Usuário ID: ${e.usuarioId} | Data: ${e.data.toISOString()}`);
-    });
-  }
+    async buscarEmprestimosAtrasados(req: Request, res: Response) {
+        try {
+            const emprestimos = await this.emprestimoService.buscarEmprestimosAtrasados();
+            res.json(emprestimos);
+        } catch (error) {
+            res.status(500).json({ mensagem: 'Erro interno do servidor' });
+        }
+    }
 }

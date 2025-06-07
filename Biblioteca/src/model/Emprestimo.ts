@@ -69,8 +69,12 @@ class Emprestimo {
         this.dataEmprestimo = dataEmprestimo;
     }
 
-    public setDataDevolucaoPrevista(dataDevolucaoPrevista: Date): void {
-        this.dataDevolucaoPrevista = dataDevolucaoPrevista;
+    public setDataDevolucaoPrevista(data: Date): void {
+        this.dataDevolucaoPrevista = data;
+    }
+
+    public setDataDevolucaoReal(data: Date): void {
+        this.dataDevolucaoReal = data;
     }
 
     public setStatus(status: StatusEmprestimo): void {
@@ -85,7 +89,7 @@ class Emprestimo {
 
     public renovarEmprestimo(novaDataDevolucao: Date): void {
         this.dataDevolucaoPrevista = novaDataDevolucao;
-        this.status = StatusEmprestimo.RENOVADO;
+        this.status = StatusEmprestimo.EM_ANDAMENTO;
     }
 
     public cancelarEmprestimo(): void {

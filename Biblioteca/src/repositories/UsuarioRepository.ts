@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase';
 import Usuario from '../model/Usuario';
+import { retryOperation } from '../utils/databaseUtils';
 
 export class UsuarioRepository {
     private readonly TABLE_NAME = 'usuarios';
@@ -12,88 +13,107 @@ export class UsuarioRepository {
             telefone: usuario.getTelefone()
         };
         
-        const { data, error } = await supabase
-            .from(this.TABLE_NAME)
-            .insert([dados])
-            .select()
-            .single();
+        try {
+            const { data: usuarioInserido, error } = await supabase
+                .from(this.TABLE_NAME)
+                .insert([dados])
+                .select()
+                .maybeSingle();
 
-        if (error) {
+            if (error || !usuarioInserido) {
+                console.error('Erro ao criar usuário:', error);
+                return null;
+            }
+
+            return this.converterParaUsuario(usuarioInserido);
+        } catch (error) {
             console.error('Erro ao criar usuário:', error);
             return null;
         }
-
-        return this.converterParaUsuario(data);
     }
 
     async buscarTodos(): Promise<Usuario[]> {
-        const { data, error } = await supabase
-            .from(this.TABLE_NAME)
-            .select('*');
+        try {
+            const { data, error } = await supabase
+                .from(this.TABLE_NAME)
+                .select();
 
-        if (error) {
+            if (error || !data) {
+                throw new Error('Erro ao buscar usuários');
+            }
+
+            return data.map(u => this.converterParaUsuario(u));
+        } catch (error) {
             console.error('Erro ao buscar usuários:', error);
             return [];
         }
-
-        return data.map(this.converterParaUsuario);
     }
 
     async buscarPorId(id: number): Promise<Usuario | null> {
-        const { data, error } = await supabase
-            .from(this.TABLE_NAME)
-            .select('*')
-            .eq('id', id)
-            .single();
+        try {
+            const { data, error } = await supabase
+                .from(this.TABLE_NAME)
+                .select()
+                .eq('id', id)
+                .maybeSingle();
 
-        if (error) {
+            if (error || !data) {
+                throw new Error(`Usuário não encontrado com ID: ${id}`);
+            }
+
+            return this.converterParaUsuario(data);
+        } catch (error) {
             console.error('Erro ao buscar usuário:', error);
             return null;
         }
-
-        return this.converterParaUsuario(data);
     }
 
     async atualizar(usuario: Usuario): Promise<boolean> {
-        const { error } = await supabase
-            .from(this.TABLE_NAME)
-            .update({
-                matricula: usuario.getMatricula(),
-                nome: usuario.getNome(),
-                email: usuario.getEmail(),
-                telefone: usuario.getTelefone()
-            })
-            .eq('id', usuario.getId());
+        if (!usuario.getId()) {
+            return false;
+        }
 
-        if (error) {
+        const dados = {
+            matricula: usuario.getMatricula(),
+            nome: usuario.getNome(),
+            email: usuario.getEmail(),
+            telefone: usuario.getTelefone()
+        };
+
+        try {
+            const { error } = await supabase
+                .from(this.TABLE_NAME)
+                .update(dados)
+                .eq('id', usuario.getId());
+
+            return !error;
+        } catch (error) {
             console.error('Erro ao atualizar usuário:', error);
             return false;
         }
-
-        return true;
     }
 
     async deletar(id: number): Promise<boolean> {
-        const { error } = await supabase
-            .from(this.TABLE_NAME)
-            .delete()
-            .eq('id', id);
+        try {
+            const { error } = await supabase
+                .from(this.TABLE_NAME)
+                .delete()
+                .eq('id', id);
 
-        if (error) {
+            return !error;
+        } catch (error) {
             console.error('Erro ao deletar usuário:', error);
             return false;
         }
-
-        return true;
     }
 
-    private converterParaUsuario(data: any): Usuario {
+    converterParaUsuario(dados: any): Usuario {
         return new Usuario(
-            data.id,
-            data.matricula,
-            data.nome,
-            data.email,
-            data.telefone
+            dados.id,
+            dados.matricula,
+            dados.nome,
+            dados.email,
+            dados.telefone
         );
     }
 } 

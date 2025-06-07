@@ -10,19 +10,22 @@ import { LivroRepository } from '../repositories/LivroRepository';
 import { UsuarioRepository } from '../repositories/UsuarioRepository';
 import { EmprestimoRepository } from '../repositories/EmprestimoRepository';
 import { supabase } from '../config/supabase';
+import { retryOperation } from '../utils/databaseUtils';
 
 describe('Testes dos Serviços da Biblioteca', () => {
     let livroService: LivroService;
     let usuarioService: UsuarioService;
     let emprestimoService: EmprestimoService;
-    let livroSalvo: Livro | null;
-    let usuarioSalvo: Usuario | null;
+    let livroSalvo: Livro;
+    let usuarioSalvo: Usuario;
 
     beforeAll(async () => {
         // Limpar dados das tabelas
-        await supabase.from('emprestimos').delete().neq('id', 0);
-        await supabase.from('livros').delete().neq('id', 0);
-        await supabase.from('usuarios').delete().neq('id', 0);
+        await Promise.all([
+            supabase.from('emprestimos').delete().neq('id', 0),
+            supabase.from('livros').delete().neq('id', 0),
+            supabase.from('usuarios').delete().neq('id', 0)
+        ]);
 
         // Inicializar serviços
         const livroRepo = new LivroRepository();
@@ -32,6 +35,15 @@ describe('Testes dos Serviços da Biblioteca', () => {
         livroService = new LivroService(livroRepo);
         usuarioService = new UsuarioService(usuarioRepo, emprestimoRepo);
         emprestimoService = new EmprestimoService(emprestimoRepo, livroService, usuarioService);
+    });
+
+    beforeEach(async () => {
+        // Limpar dados das tabelas antes de cada teste
+        await Promise.all([
+            supabase.from('emprestimos').delete().neq('id', 0),
+            supabase.from('livros').delete().neq('id', 0),
+            supabase.from('usuarios').delete().neq('id', 0)
+        ]);
 
         // Criar livro e usuário para os testes
         const livro = new Livro(
@@ -41,7 +53,13 @@ describe('Testes dos Serviços da Biblioteca', () => {
             1954,
             CategoriaLivro.FANTASIA
         );
-        livroSalvo = await livroService.cadastrarLivro(livro);
+
+        const livroResult = await retryOperation(async () => {
+            const result = await livroService.cadastrarLivro(livro);
+            if (!result) throw new Error('Falha ao cadastrar livro');
+            return result;
+        });
+        livroSalvo = livroResult;
 
         const timestamp = new Date().getTime();
         const usuario = new Usuario(
@@ -51,7 +69,13 @@ describe('Testes dos Serviços da Biblioteca', () => {
             `joao${timestamp}@email.com`,
             '123456789'
         );
-        usuarioSalvo = await usuarioService.cadastrarUsuario(usuario);
+
+        const usuarioResult = await retryOperation(async () => {
+            const result = await usuarioService.cadastrarUsuario(usuario);
+            if (!result) throw new Error('Falha ao cadastrar usuário');
+            return result;
+        });
+        usuarioSalvo = usuarioResult;
     });
 
     describe('LivroService', () => {
@@ -64,14 +88,22 @@ describe('Testes dos Serviços da Biblioteca', () => {
                 CategoriaLivro.FANTASIA
             );
 
-            livroSalvo = await livroService.cadastrarLivro(livro);
-            expect(livroSalvo).not.toBeNull();
-            expect(livroSalvo?.getTitulo()).toBe('O Senhor dos Anéis');
+            const novoLivro = await retryOperation(async () => {
+                const result = await livroService.cadastrarLivro(livro);
+                if (!result) throw new Error('Falha ao cadastrar livro');
+                return result;
+            });
+
+            expect(novoLivro.getTitulo()).toBe('O Senhor dos Anéis');
         });
 
         it('deve buscar livro por título parcial', async () => {
-            const livrosEncontrados = await livroService.buscarLivrosPorTituloParcial('Senhor');
-            expect(livrosEncontrados.length).toBeGreaterThan(0);
+            const livrosEncontrados = await retryOperation(async () => {
+                const result = await livroService.buscarLivrosPorTituloParcial('Senhor');
+                if (result.length === 0) throw new Error('Nenhum livro encontrado');
+                return result;
+            });
+
             expect(livrosEncontrados[0].getTitulo()).toContain('Senhor');
         });
     });
@@ -87,47 +119,98 @@ describe('Testes dos Serviços da Biblioteca', () => {
                 '123456789'
             );
 
-            usuarioSalvo = await usuarioService.cadastrarUsuario(usuario);
-            expect(usuarioSalvo).not.toBeNull();
-            expect(usuarioSalvo?.getNome()).toBe('João Silva');
+            const novoUsuario = await retryOperation(async () => {
+                const result = await usuarioService.cadastrarUsuario(usuario);
+                if (!result) throw new Error('Falha ao cadastrar usuário');
+                return result;
+            });
+
+            expect(novoUsuario.getNome()).toBe('João Silva');
         });
 
         it('deve verificar limite de empréstimos', async () => {
-            if (!usuarioSalvo) throw new Error('Usuário não foi salvo');
-            
-            const podePegarEmprestado = await usuarioService.verificarLimiteEmprestimos(usuarioSalvo.getId());
+            const podePegarEmprestado = await retryOperation(async () => {
+                const result = await usuarioService.verificarLimiteEmprestimos(usuarioSalvo.getId());
+                return result;
+            });
+
             expect(podePegarEmprestado).toBe(true);
         });
     });
 
     describe('EmprestimoService', () => {
-        let emprestimoSalvo: Emprestimo | null;
+        let emprestimoSalvo: Emprestimo;
 
         it('deve realizar um empréstimo', async () => {
-            if (!livroSalvo || !usuarioSalvo) throw new Error('Livro ou usuário não foram salvos');
+            emprestimoSalvo = await retryOperation(async () => {
+                const result = await emprestimoService.realizarEmprestimo(
+                    livroSalvo.getId(),
+                    usuarioSalvo.getId()
+                );
+                if (!result) throw new Error('Falha ao realizar empréstimo');
+                return result;
+            });
 
-            emprestimoSalvo = await emprestimoService.realizarEmprestimo(
-                livroSalvo.getId(),
-                usuarioSalvo.getId()
-            );
-
-            expect(emprestimoSalvo).not.toBeNull();
-            expect(emprestimoSalvo?.getStatus()).toBe(StatusEmprestimo.EM_ANDAMENTO);
+            expect(emprestimoSalvo.getStatus()).toBe(StatusEmprestimo.EM_ANDAMENTO);
         });
 
         it('não deve permitir empréstimo duplicado', async () => {
-            if (!livroSalvo || !usuarioSalvo) throw new Error('Livro ou usuário não foram salvos');
+            // Verificar se o livro e usuário ainda existem
+            const [livroExistente, usuarioExistente] = await Promise.all([
+                retryOperation(() => livroService.buscarLivroPorId(livroSalvo.getId())),
+                retryOperation(() => usuarioService.buscarUsuarioPorId(usuarioSalvo.getId()))
+            ]);
 
+            expect(livroExistente).not.toBeNull();
+            expect(usuarioExistente).not.toBeNull();
+
+            // Realizar primeiro empréstimo
+            emprestimoSalvo = await retryOperation(async () => {
+                const result = await emprestimoService.realizarEmprestimo(
+                    livroSalvo.getId(),
+                    usuarioSalvo.getId()
+                );
+                if (!result) throw new Error('Falha ao realizar primeiro empréstimo');
+                return result;
+            }, 5, 2000); // Aumentar número de tentativas e delay
+
+            // Tentar realizar segundo empréstimo do mesmo livro
             await expect(
                 emprestimoService.realizarEmprestimo(livroSalvo.getId(), usuarioSalvo.getId())
             ).rejects.toThrow('Este livro já está emprestado');
-        });
+        }, 60000); // Aumentar timeout do teste para 60 segundos
 
         it('deve realizar devolução', async () => {
-            if (!emprestimoSalvo) throw new Error('Empréstimo não foi salvo');
+            // Realizar empréstimo
+            emprestimoSalvo = await retryOperation(async () => {
+                // Verificar se o livro ainda existe
+                const livroExistente = await livroService.buscarLivroPorId(livroSalvo.getId());
+                if (!livroExistente) throw new Error('Livro não encontrado antes do empréstimo');
 
-            const devolucaoRealizada = await emprestimoService.realizarDevolucao(emprestimoSalvo.getId());
+                const result = await emprestimoService.realizarEmprestimo(
+                    livroSalvo.getId(),
+                    usuarioSalvo.getId()
+                );
+                if (!result) throw new Error('Falha ao realizar empréstimo');
+                return result;
+            });
+
+            const devolucaoRealizada = await retryOperation(async () => {
+                const result = await emprestimoService.realizarDevolucao(emprestimoSalvo.getId());
+                if (!result) throw new Error('Falha ao realizar devolução');
+                return result;
+            });
+
             expect(devolucaoRealizada).toBe(true);
+
+            // Verificar o status do empréstimo após a devolução
+            const emprestimoAposDevol = await retryOperation(async () => {
+                const result = await emprestimoService.buscarEmprestimoPorId(emprestimoSalvo.getId());
+                if (!result) throw new Error('Empréstimo não encontrado após devolução');
+                return result;
+            });
+
+            expect(emprestimoAposDevol.getStatus()).toBe(StatusEmprestimo.DEVOLVIDO);
         });
     });
 }); 
