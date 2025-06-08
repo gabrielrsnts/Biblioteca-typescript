@@ -20,16 +20,6 @@ describe('Testes dos Serviços da Biblioteca', () => {
     let usuarioSalvo: Usuario;
 
     beforeAll(async () => {
-        // Limpar dados das tabelas
-        await Promise.all([
-            supabase.from('emprestimos').delete().neq('id', 0),
-            supabase.from('livros').delete().neq('id', 0),
-            supabase.from('usuarios').delete().neq('id', 0)
-        ]);
-
-        // Aguardar um pouco para garantir que o banco foi limpo
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
         // Inicializar serviços
         const livroRepo = new LivroRepository(supabase);
         const usuarioRepo = new UsuarioRepository(supabase);
@@ -41,23 +31,13 @@ describe('Testes dos Serviços da Biblioteca', () => {
     });
 
     beforeEach(async () => {
-        // Limpar dados das tabelas antes de cada teste
-        await Promise.all([
-            supabase.from('emprestimos').delete().neq('id', 0),
-            supabase.from('livros').delete().neq('id', 0),
-            supabase.from('usuarios').delete().neq('id', 0)
-        ]);
-
-        // Aguardar um pouco para garantir que o banco foi limpo
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
         // Criar livro e usuário para os testes
         const livro = new Livro(
             null as any,
-            'O Senhor dos Anéis',
-            'J.R.R. Tolkien',
-            1954,
-            CategoriaLivro.FANTASIA
+            'Livro de Teste',
+            'Autor de Teste',
+            2024,
+            CategoriaLivro.LITERATURA
         );
 
         const livroResult = await retryOperation(async () => {
@@ -73,9 +53,9 @@ describe('Testes dos Serviços da Biblioteca', () => {
         const timestamp = new Date().getTime();
         const usuario = new Usuario(
             null as any,
-            `12345${timestamp}`,
-            'João Silva',
-            `joao${timestamp}@email.com`,
+            `TESTE${timestamp}`,
+            'Usuário de Teste',
+            `teste${timestamp}@email.com`,
             '123456789'
         );
 
