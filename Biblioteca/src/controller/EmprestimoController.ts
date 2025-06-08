@@ -1,34 +1,119 @@
-import { logAction } from '../utils/logger';
+import { Request, Response } from 'express';
+import EmprestimoService from '../service/EmprestimoService';
+import Emprestimo from '../model/Emprestimo';
 
-export class EmprestimoController {
-  private emprestimos: any[] = [];
+export default class EmprestimoController {
+    private emprestimoService: EmprestimoService;
 
-  constructor(private livroCtrl: any, private usuarioCtrl: any) {}
+    constructor(emprestimoService: EmprestimoService) {
+        this.emprestimoService = emprestimoService;
+    }
 
-  @logAction
-  emprestarLivro(idLivro: number, idUsuario: number) {
-    const livro = this.livroCtrl.getLivros().find((l: any) => l.id === idLivro);
-    const usuario = this.usuarioCtrl.buscarUsuario(idUsuario);
+    async realizarEmprestimo(req: Request, res: Response) {
+        try {
+            const { livroId, usuarioId } = req.body;
+            const emprestimo = await this.emprestimoService.realizarEmprestimo(livroId, usuarioId);
+            return res.status(201).json(emprestimo);
+        } catch (error: any) {
+            return res.status(400).json({ error: error.message });
+        }
+    }
 
-    if (!livro || !livro.disponivel) return console.log('Livro não disponível.');
-    if (!usuario) return console.log('Usuário não encontrado.');
+    async realizarEmprestimoDirectly(livroId: number, usuarioId: number): Promise<Emprestimo | null> {
+        try {
+            return await this.emprestimoService.realizarEmprestimo(livroId, usuarioId);
+        } catch (error) {
+            console.error('Erro ao realizar empréstimo:', error);
+            return null;
+        }
+    }
 
-    this.emprestimos.push({ livroId: idLivro, usuarioId: idUsuario, data: new Date() });
-    this.livroCtrl.atualizarDisponibilidade(idLivro, false);
-    console.log('Empréstimo realizado!');
-  }
+    async realizarDevolucao(req: Request, res: Response) {
+        try {
+            const { emprestimoId } = req.body;
+            const sucesso = await this.emprestimoService.realizarDevolucao(emprestimoId);
+            return res.status(200).json({ sucesso });
+        } catch (error: any) {
+            return res.status(400).json({ error: error.message });
+        }
+    }
 
-  @logAction
-  devolverLivro(idLivro: number) {
-    const emprestimo = this.emprestimos.find(e => e.livroId === idLivro);
-    if (!emprestimo) return console.log('Livro não estava emprestado.');
-    this.livroCtrl.atualizarDisponibilidade(idLivro, true);
-    console.log('Livro devolvido com sucesso!');
-  }
+    async realizarDevolucaoDirectly(emprestimoId: number): Promise<boolean> {
+        try {
+            return await this.emprestimoService.realizarDevolucao(emprestimoId);
+        } catch (error) {
+            console.error('Erro ao realizar devolução:', error);
+            return false;
+        }
+    }
 
-  listarEmprestimos() {
-    this.emprestimos.forEach(e => {
-      console.log(`Livro ID: ${e.livroId} | Usuário ID: ${e.usuarioId} | Data: ${e.data.toISOString()}`);
-    });
-  }
+    async buscarEmprestimoPorId(id: number): Promise<Emprestimo | null> {
+        return await this.emprestimoService.buscarEmprestimoPorId(id);
+    }
+
+    async buscarEmprestimosPorUsuario(usuarioId: number): Promise<Emprestimo[]> {
+        return await this.emprestimoService.buscarEmprestimosPorUsuario(usuarioId);
+    }
+
+    async listarEmprestimos(req: Request, res: Response) {
+        try {
+            const emprestimos = await this.emprestimoService.listarEmprestimos();
+            return res.status(200).json(emprestimos);
+        } catch (error: any) {
+            return res.status(500).json({ error: error.message });
+        }
+    }
+
+    async buscarEmprestimoPorIdDirectly(id: number): Promise<Emprestimo | null> {
+        try {
+            if (isNaN(id)) {
+                throw new Error('ID do empréstimo deve ser um número válido');
+            }
+
+            if (id <= 0) {
+                throw new Error('ID do empréstimo deve ser um número positivo');
+            }
+
+            return await this.emprestimoService.buscarEmprestimoPorId(id);
+        } catch (error) {
+            console.error('Erro ao buscar empréstimo:', error);
+            return null;
+        }
+    }
+
+    // Métodos diretos para uso via CLI
+    async emprestarLivroDirectly(livroId: number, usuarioId: number): Promise<Emprestimo | null> {
+        try {
+            if (isNaN(livroId) || isNaN(usuarioId)) {
+                throw new Error('ID do livro e ID do usuário devem ser números válidos');
+            }
+
+            if (livroId <= 0 || usuarioId <= 0) {
+                throw new Error('IDs devem ser números positivos');
+            }
+
+            return await this.emprestimoService.realizarEmprestimo(livroId, usuarioId);
+        } catch (error) {
+            if (error instanceof Error) {
+                console.error('Erro ao realizar empréstimo:', error.message);
+                throw error;
+            }
+            console.error('Erro ao realizar empréstimo:', error);
+            return null;
+        }
+    }
+
+    async listarEmprestimosDirectly(): Promise<Emprestimo[]> {
+        try {
+            return await this.emprestimoService.listarEmprestimos();
+        } catch (error) {
+            console.error('Erro ao listar empréstimos:', error);
+            return [];
+        }
+    }
+
+    async buscarEmprestimosAtivos(): Promise<Emprestimo[]> {
+        return await this.emprestimoService.buscarEmprestimosAtivos();
+    }
 }
+

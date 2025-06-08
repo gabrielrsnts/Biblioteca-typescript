@@ -1,132 +1,193 @@
-import { supabase } from '../config/supabase';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { BaseRepository } from './BaseRepository';
 import Emprestimo from '../model/Emprestimo';
-import { LivroRepository } from './LivroRepository';
-import { UsuarioRepository } from './UsuarioRepository';
 import StatusEmprestimo from '../model/StatusEmprestimo';
 
-export class EmprestimoRepository {
+export class EmprestimoRepository extends BaseRepository {
     private readonly TABLE_NAME = 'emprestimos';
-    private livroRepo: LivroRepository;
-    private usuarioRepo: UsuarioRepository;
 
-    constructor() {
-        this.livroRepo = new LivroRepository();
-        this.usuarioRepo = new UsuarioRepository();
+    constructor(db: SupabaseClient) {
+        super(db);
     }
 
-    async criar(emprestimo: Emprestimo): Promise<Emprestimo | null> {
-        const dados = {
-            livro_id: emprestimo.getLivro().getId(),
-            usuario_id: emprestimo.getUsuario().getId(),
-            data_emprestimo: emprestimo.getDataEmprestimo().toISOString(),
-            data_devolucao_prevista: emprestimo.getDataDevolucaoPrevista().toISOString(),
-            data_devolucao_efetiva: emprestimo.getDataDevolucaoReal()?.toISOString() || null,
-            status: emprestimo.getStatus()
-        };
-        
-        const { data, error } = await supabase
-            .from(this.TABLE_NAME)
-            .insert([dados])
-            .select()
-            .single();
+    async salvar(emprestimo: Emprestimo): Promise<Emprestimo | null> {
+        try {
+            const { data, error } = await this.db
+                .from(this.TABLE_NAME)
+                .insert({
+                    livro_id: emprestimo.getLivroId(),
+                    usuario_id: emprestimo.getUsuarioId(),
+                    data_emprestimo: emprestimo.getDataEmprestimo(),
+                    data_devolucao_prevista: emprestimo.getDataDevolucaoPrevista(),
+                    data_devolucao_efetiva: emprestimo.getDataDevolucaoEfetiva(),
+                    status: emprestimo.getStatus()
+                })
+                .select()
+                .single();
 
-        if (error) {
-            console.error('Erro ao criar empréstimo:', error);
+            if (error) {
+                console.error('Erro ao salvar empréstimo:', error);
+                return null;
+            }
+
+            return new Emprestimo(
+                data.id,
+                data.livro_id,
+                data.usuario_id,
+                new Date(data.data_emprestimo),
+                new Date(data.data_devolucao_prevista),
+                data.data_devolucao_efetiva ? new Date(data.data_devolucao_efetiva) : null,
+                data.status as StatusEmprestimo
+            );
+        } catch (error) {
+            console.error('Erro ao salvar empréstimo:', error);
             return null;
         }
-
-        return await this.converterParaEmprestimo(data);
-    }
-
-    async buscarTodos(): Promise<Emprestimo[]> {
-        const { data, error } = await supabase
-            .from(this.TABLE_NAME)
-            .select('*');
-
-        if (error) {
-            console.error('Erro ao buscar empréstimos:', error);
-            return [];
-        }
-
-        const emprestimos = await Promise.all(data.map(d => this.converterParaEmprestimo(d)));
-        return emprestimos.filter((e): e is Emprestimo => e !== null);
     }
 
     async buscarPorId(id: number): Promise<Emprestimo | null> {
-        const { data, error } = await supabase
-            .from(this.TABLE_NAME)
-            .select('*')
-            .eq('id', id)
-            .single();
+        try {
+            const { data, error } = await this.db
+                .from(this.TABLE_NAME)
+                .select()
+                .eq('id', id)
+                .single();
 
-        if (error) {
+            if (error || !data) {
+                return null;
+            }
+
+            return new Emprestimo(
+                data.id,
+                data.livro_id,
+                data.usuario_id,
+                new Date(data.data_emprestimo),
+                new Date(data.data_devolucao_prevista),
+                data.data_devolucao_efetiva ? new Date(data.data_devolucao_efetiva) : null,
+                data.status as StatusEmprestimo
+            );
+        } catch (error) {
             console.error('Erro ao buscar empréstimo:', error);
             return null;
         }
+    }
 
-        return await this.converterParaEmprestimo(data);
+    async buscarPorLivroId(livroId: number): Promise<Emprestimo | null> {
+        try {
+            const { data, error } = await this.db
+                .from(this.TABLE_NAME)
+                .select()
+                .eq('livro_id', livroId)
+                .eq('status', StatusEmprestimo.EM_ANDAMENTO)
+                .single();
+
+            if (error || !data) {
+                return null;
+            }
+
+            return new Emprestimo(
+                data.id,
+                data.livro_id,
+                data.usuario_id,
+                new Date(data.data_emprestimo),
+                new Date(data.data_devolucao_prevista),
+                data.data_devolucao_efetiva ? new Date(data.data_devolucao_efetiva) : null,
+                data.status as StatusEmprestimo
+            );
+        } catch (error) {
+            console.error('Erro ao buscar empréstimo por livro:', error);
+            return null;
+        }
+    }
+
+    async buscarPorUsuarioId(usuarioId: number): Promise<Emprestimo[]> {
+        try {
+            const { data, error } = await this.db
+                .from(this.TABLE_NAME)
+                .select()
+                .eq('usuario_id', usuarioId)
+                .eq('status', StatusEmprestimo.EM_ANDAMENTO);
+
+            if (error || !data) {
+                return [];
+            }
+
+            return data.map(item => new Emprestimo(
+                item.id,
+                item.livro_id,
+                item.usuario_id,
+                new Date(item.data_emprestimo),
+                new Date(item.data_devolucao_prevista),
+                item.data_devolucao_efetiva ? new Date(item.data_devolucao_efetiva) : null,
+                item.status as StatusEmprestimo
+            ));
+        } catch (error) {
+            console.error('Erro ao buscar empréstimos do usuário:', error);
+            return [];
+        }
+    }
+
+    async buscarTodos(): Promise<Emprestimo[]> {
+        try {
+            const { data, error } = await this.db
+                .from(this.TABLE_NAME)
+                .select();
+
+            if (error || !data) {
+                return [];
+            }
+
+            return data.map(item => new Emprestimo(
+                item.id,
+                item.livro_id,
+                item.usuario_id,
+                new Date(item.data_emprestimo),
+                new Date(item.data_devolucao_prevista),
+                item.data_devolucao_efetiva ? new Date(item.data_devolucao_efetiva) : null,
+                item.status as StatusEmprestimo
+            ));
+        } catch (error) {
+            console.error('Erro ao buscar empréstimos:', error);
+            return [];
+        }
     }
 
     async atualizar(emprestimo: Emprestimo): Promise<boolean> {
-        const { error } = await supabase
-            .from(this.TABLE_NAME)
-            .update({
-                livro_id: emprestimo.getLivro().getId(),
-                usuario_id: emprestimo.getUsuario().getId(),
-                data_emprestimo: emprestimo.getDataEmprestimo().toISOString(),
-                data_devolucao_prevista: emprestimo.getDataDevolucaoPrevista().toISOString(),
-                data_devolucao_efetiva: emprestimo.getDataDevolucaoReal()?.toISOString() || null,
-                status: emprestimo.getStatus()
-            })
-            .eq('id', emprestimo.getId());
+        if (!emprestimo.getId()) {
+            return false;
+        }
 
-        if (error) {
+        try {
+            const { error } = await this.db
+                .from(this.TABLE_NAME)
+                .update({
+                    livro_id: emprestimo.getLivroId(),
+                    usuario_id: emprestimo.getUsuarioId(),
+                    data_emprestimo: emprestimo.getDataEmprestimo(),
+                    data_devolucao_prevista: emprestimo.getDataDevolucaoPrevista(),
+                    data_devolucao_efetiva: emprestimo.getDataDevolucaoEfetiva(),
+                    status: emprestimo.getStatus()
+                })
+                .eq('id', emprestimo.getId());
+
+            return !error;
+        } catch (error) {
             console.error('Erro ao atualizar empréstimo:', error);
             return false;
         }
-
-        return true;
     }
 
     async deletar(id: number): Promise<boolean> {
-        const { error } = await supabase
-            .from(this.TABLE_NAME)
-            .delete()
-            .eq('id', id);
+        try {
+            const { error } = await this.db
+                .from(this.TABLE_NAME)
+                .delete()
+                .eq('id', id);
 
-        if (error) {
+            return !error;
+        } catch (error) {
             console.error('Erro ao deletar empréstimo:', error);
             return false;
         }
-
-        return true;
-    }
-
-    private async converterParaEmprestimo(data: any): Promise<Emprestimo | null> {
-        const livro = await this.livroRepo.buscarPorId(data.livro_id);
-        const usuario = await this.usuarioRepo.buscarPorId(data.usuario_id);
-
-        if (!livro || !usuario) {
-            console.error('Erro ao converter empréstimo: livro ou usuário não encontrado');
-            return null;
-        }
-
-        const emprestimo = new Emprestimo(
-            data.id,
-            livro,
-            usuario,
-            new Date(data.data_emprestimo),
-            new Date(data.data_devolucao_prevista)
-        );
-
-        if (data.data_devolucao_efetiva) {
-            emprestimo.realizarDevolucao(new Date(data.data_devolucao_efetiva));
-        }
-
-        if (data.status !== StatusEmprestimo.EM_ANDAMENTO) {
-            emprestimo.setStatus(data.status as StatusEmprestimo);
-        }
-
-        return emprestimo;
     }
 } 
