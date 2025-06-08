@@ -1,26 +1,13 @@
-class Usuario {
-    private id: number;
-    private matricula: string;
-    private nome: string;
-    private email: string;
-    private telefone: string;
-
+export default class Usuario {
     constructor(
-        id: number,
-        matricula: string,
-        nome: string,
-        email: string,
-        telefone: string
-    ) {
-        this.id = id;
-        this.matricula = matricula;
-        this.nome = nome;
-        this.email = email;
-        this.telefone = telefone;
-    }
+        public id: number | null,
+        public matricula: string,
+        public nome: string,
+        public email: string,
+        public telefone: string
+    ) {}
 
-    // Getters
-    public getId(): number {
+    public getId(): number | null {
         return this.id;
     }
 
@@ -40,7 +27,6 @@ class Usuario {
         return this.telefone;
     }
 
-
     // Setters
     public setMatricula(matricula: string): void {
         this.matricula = matricula;
@@ -57,8 +43,4 @@ class Usuario {
     public setTelefone(telefone: string): void {
         this.telefone = telefone;
     }
-
-
-}
-
-export default Usuario; 
+} 

@@ -2,29 +2,28 @@ import { Request, Response } from 'express';
 import { UsuarioService } from '../service/UsuarioService';
 import Usuario from '../model/Usuario';
 
+export interface UsuarioCadastroDTO {
+    matricula: string;
+    nome: string;
+    email: string;
+    telefone: string;
+}
+
 export class UsuarioController {
     constructor(private usuarioService: UsuarioService) {}
 
+    // Método para chamadas diretas
+    async cadastrarUsuarioDirectly(dados: UsuarioCadastroDTO): Promise<Usuario | null> {
+        return await this.usuarioService.cadastrarUsuario(dados);
+    }
+
+    // Método para API
     async cadastrarUsuario(req: Request, res: Response) {
         try {
-            const { matricula, nome, email, telefone } = req.body;
-            
-            const usuario = new Usuario(
-                null as any,
-                matricula,
-                nome,
-                email,
-                telefone
-            );
-
-            const usuarioSalvo = await this.usuarioService.cadastrarUsuario(usuario);
-            if (usuarioSalvo) {
-                res.status(201).json(usuarioSalvo);
-            } else {
-                res.status(400).json({ mensagem: 'Erro ao cadastrar usuário' });
-            }
-        } catch (error) {
-            res.status(500).json({ mensagem: 'Erro interno do servidor' });
+            const usuario = await this.usuarioService.cadastrarUsuario(req.body);
+            return res.status(201).json(usuario);
+        } catch (error: any) {
+            return res.status(400).json({ error: error.message });
         }
     }
 
@@ -43,12 +42,20 @@ export class UsuarioController {
         }
     }
 
+    // Método para chamadas diretas
+    async listarUsuariosDirectly() {
+        return await this.usuarioService.listarUsuarios();
+    }
+
+    // Método para API
     async listarUsuarios(req: Request, res: Response) {
         try {
-            const usuarios = await this.usuarioService.buscarTodosUsuarios();
-            res.json(usuarios);
+            const usuarios = await this.usuarioService.listarUsuarios();
+            return res.json(usuarios);
         } catch (error) {
-            res.status(500).json({ mensagem: 'Erro interno do servidor' });
+            return res.status(500).json({ 
+                error: error instanceof Error ? error.message : 'Erro ao listar usuários' 
+            });
         }
     }
 
@@ -129,6 +136,36 @@ export class UsuarioController {
             res.json(usuarios);
         } catch (error) {
             res.status(500).json({ mensagem: 'Erro interno do servidor' });
+        }
+    }
+
+    async buscarUsuarioPorIdDirectly(id: number): Promise<Usuario | null> {
+        try {
+            if (isNaN(id)) {
+                throw new Error('ID do usuário deve ser um número válido');
+            }
+
+            if (id <= 0) {
+                throw new Error('ID do usuário deve ser um número positivo');
+            }
+
+            return await this.usuarioService.buscarUsuarioPorId(id);
+        } catch (error) {
+            console.error('Erro ao buscar usuário:', error);
+            return null;
+        }
+    }
+
+    async buscarUsuarioPorMatriculaDirectly(matricula: string): Promise<Usuario | null> {
+        try {
+            if (!matricula || matricula.trim() === '') {
+                throw new Error('Matrícula não pode estar vazia');
+            }
+
+            return await this.usuarioService.buscarUsuarioPorMatricula(matricula);
+        } catch (error) {
+            console.error('Erro ao buscar usuário:', error);
+            return null;
         }
     }
 }

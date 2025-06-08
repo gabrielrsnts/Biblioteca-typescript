@@ -1,5 +1,7 @@
 import Livro from '../model/Livro';
 import { LivroRepository } from '../repositories/LivroRepository';
+import { LivroCadastroDTO } from '../controller/LivroController';
+import CategoriaLivro from '../model/CategoriaLivro';
 
 export class LivroService {
     private livroRepository: LivroRepository;
@@ -8,8 +10,15 @@ export class LivroService {
         this.livroRepository = livroRepository;
     }
 
-    async cadastrarLivro(livro: Livro): Promise<Livro | null> {
-        return await this.livroRepository.criar(livro);
+    async cadastrarLivro(dados: LivroCadastroDTO): Promise<Livro | null> {
+        const livro = new Livro(
+            null,
+            dados.titulo,
+            dados.autor,
+            dados.anoPublicacao,
+            dados.categoria
+        );
+        return await this.livroRepository.salvar(livro);
     }
 
     async buscarLivroPorId(id: number): Promise<Livro | null> {
@@ -17,6 +26,10 @@ export class LivroService {
     }
 
     async buscarTodosLivros(): Promise<Livro[]> {
+        return await this.livroRepository.buscarTodos();
+    }
+
+    async listarLivros(): Promise<Livro[]> {
         return await this.livroRepository.buscarTodos();
     }
 
@@ -30,19 +43,7 @@ export class LivroService {
 
     // Função recursiva para busca parcial por título
     async buscarLivrosPorTituloParcial(titulo: string): Promise<Livro[]> {
-        const todosLivros = await this.buscarTodosLivros();
-        return this.filtrarLivrosPorTitulo(todosLivros, titulo.toLowerCase());
-    }
-
-    private filtrarLivrosPorTitulo(livros: Livro[], titulo: string): Livro[] {
-        if (livros.length === 0) return [];
-        
-        const [primeiro, ...resto] = livros;
-        const matches = primeiro.getTitulo().toLowerCase().includes(titulo);
-        
-        return matches 
-            ? [primeiro, ...this.filtrarLivrosPorTitulo(resto, titulo)]
-            : this.filtrarLivrosPorTitulo(resto, titulo);
+        return await this.livroRepository.buscarPorTituloParcial(titulo);
     }
 
     // Verifica se um livro está disponível para empréstimo
@@ -53,5 +54,31 @@ export class LivroService {
         // Aqui você pode adicionar mais lógica de verificação de disponibilidade
         // Por exemplo, verificar se não está emprestado no momento
         return true;
+    }
+
+    async buscarLivrosDisponiveis(): Promise<Livro[]> {
+        const todosLivros = await this.buscarTodosLivros();
+        const livrosDisponiveis: Livro[] = [];
+
+        for (const livro of todosLivros) {
+            const id = livro.getId();
+            if (id !== null) {
+                const disponivel = await this.verificarDisponibilidadeLivro(id);
+                if (disponivel) {
+                    livrosDisponiveis.push(livro);
+                }
+            }
+        }
+
+        return livrosDisponiveis;
+    }
+
+    async buscarLivrosPorCategoria(categoria: CategoriaLivro): Promise<Livro[]> {
+        try {
+            return await this.livroRepository.buscarLivrosPorCategoria(categoria);
+        } catch (error) {
+            console.error('Erro ao buscar livros por categoria:', error);
+            throw error;
+        }
     }
 } 

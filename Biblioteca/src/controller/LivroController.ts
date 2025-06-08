@@ -3,29 +3,28 @@ import { LivroService } from '../service/LivroService';
 import Livro from '../model/Livro';
 import CategoriaLivro from '../model/CategoriaLivro';
 
+export interface LivroCadastroDTO {
+    titulo: string;
+    autor: string;
+    anoPublicacao: number;
+    categoria: CategoriaLivro;
+}
+
 export class LivroController {
     constructor(private livroService: LivroService) {}
 
+    // Método para chamadas diretas
+    async cadastrarLivroDirectly(dados: LivroCadastroDTO): Promise<Livro | null> {
+        return await this.livroService.cadastrarLivro(dados);
+    }
+
+    // Método para API
     async cadastrarLivro(req: Request, res: Response) {
         try {
-            const { titulo, autor, anoPublicacao, categoria } = req.body;
-            
-            const livro = new Livro(
-                null as any,
-                titulo,
-                autor,
-                anoPublicacao,
-                categoria as CategoriaLivro
-            );
-
-            const livroSalvo = await this.livroService.cadastrarLivro(livro);
-            if (livroSalvo) {
-                res.status(201).json(livroSalvo);
-            } else {
-                res.status(400).json({ mensagem: 'Erro ao cadastrar livro' });
-            }
-        } catch (error) {
-            res.status(500).json({ mensagem: 'Erro interno do servidor' });
+            const livro = await this.livroService.cadastrarLivro(req.body);
+            return res.status(201).json(livro);
+        } catch (error: any) {
+            return res.status(400).json({ error: error.message });
         }
     }
 
@@ -44,12 +43,20 @@ export class LivroController {
         }
     }
 
+    // Método para chamadas diretas
+    async listarLivrosDirectly() {
+        return await this.livroService.listarLivros();
+    }
+
+    // Método para API
     async listarLivros(req: Request, res: Response) {
         try {
-            const livros = await this.livroService.buscarTodosLivros();
-            res.json(livros);
+            const livros = await this.livroService.listarLivros();
+            return res.json(livros);
         } catch (error) {
-            res.status(500).json({ mensagem: 'Erro interno do servidor' });
+            return res.status(500).json({ 
+                error: error instanceof Error ? error.message : 'Erro ao listar livros' 
+            });
         }
     }
 
@@ -115,6 +122,40 @@ export class LivroController {
             res.json({ disponivel });
         } catch (error) {
             res.status(500).json({ mensagem: 'Erro interno do servidor' });
+        }
+    }
+
+    async buscarLivroPorIdDirectly(id: number): Promise<Livro | null> {
+        try {
+            if (isNaN(id)) {
+                throw new Error('ID do livro deve ser um número válido');
+            }
+
+            if (id <= 0) {
+                throw new Error('ID do livro deve ser um número positivo');
+            }
+
+            return await this.livroService.buscarLivroPorId(id);
+        } catch (error) {
+            console.error('Erro ao buscar livro:', error);
+            return null;
+        }
+    }
+
+    async buscarLivrosPorTituloParcial(titulo: string): Promise<Livro[]> {
+        return await this.livroService.buscarLivrosPorTituloParcial(titulo);
+    }
+
+    async buscarLivrosDisponiveis(): Promise<Livro[]> {
+        return await this.livroService.buscarLivrosDisponiveis();
+    }
+
+    async buscarLivrosPorCategoria(categoria: CategoriaLivro): Promise<Livro[]> {
+        try {
+            return await this.livroService.buscarLivrosPorCategoria(categoria);
+        } catch (error) {
+            console.error('Erro ao buscar livros por categoria:', error);
+            throw error;
         }
     }
 }

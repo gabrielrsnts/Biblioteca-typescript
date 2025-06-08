@@ -1,10 +1,10 @@
 import Emprestimo from '../model/Emprestimo';
-import StatusEmprestimo from '../model/StatusEmprestimo';
 import { EmprestimoRepository } from '../repositories/EmprestimoRepository';
 import { LivroService } from './LivroService';
 import { UsuarioService } from './UsuarioService';
+import StatusEmprestimo from '../model/StatusEmprestimo';
 
-export class EmprestimoService {
+export default class EmprestimoService {
     private emprestimoRepository: EmprestimoRepository;
     private livroService: LivroService;
     private usuarioService: UsuarioService;
@@ -19,44 +19,52 @@ export class EmprestimoService {
         this.usuarioService = usuarioService;
     }
 
-    async realizarEmprestimo(livroId: number, usuarioId: number): Promise<Emprestimo | null> {
-        // Verifica se o livro existe e está disponível
+    async realizarEmprestimo(livroId: number, usuarioId: number): Promise<Emprestimo> {
+        // Verificar se o livro existe
         const livro = await this.livroService.buscarLivroPorId(livroId);
         if (!livro) {
             throw new Error('Livro não encontrado');
         }
 
-        // Verifica se o usuário existe e pode pegar emprestado
+        // Verificar se o usuário existe
         const usuario = await this.usuarioService.buscarUsuarioPorId(usuarioId);
         if (!usuario) {
             throw new Error('Usuário não encontrado');
         }
 
+        // Verificar se o usuário pode pegar mais livros emprestados
         const podePegarEmprestado = await this.usuarioService.verificarLimiteEmprestimos(usuarioId);
         if (!podePegarEmprestado) {
             throw new Error('Usuário atingiu o limite de empréstimos');
         }
 
-        // Verifica se o livro já está emprestado
-        const livroJaEmprestado = await this.verificarLivroEmprestado(livroId);
-        if (livroJaEmprestado) {
-            throw new Error('Este livro já está emprestado');
+        // Verificar se o livro está disponível
+        const livroDisponivel = await this.verificarDisponibilidadeLivro(livroId);
+        if (!livroDisponivel) {
+            throw new Error('Livro não está disponível para empréstimo');
         }
 
-        // Cria o novo empréstimo
+        // Criar o empréstimo
         const dataEmprestimo = new Date();
         const dataDevolucaoPrevista = new Date();
-        dataDevolucaoPrevista.setDate(dataEmprestimo.getDate() + 15); // 15 dias de prazo
+        dataDevolucaoPrevista.setDate(dataEmprestimo.getDate() + 14); // 14 dias de prazo
 
-        const novoEmprestimo = new Emprestimo(
-            0, // ID será gerado pelo banco
-            livro,
-            usuario,
+        const emprestimo = new Emprestimo(
+            null as any,
+            livroId,
+            usuarioId,
             dataEmprestimo,
-            dataDevolucaoPrevista
+            dataDevolucaoPrevista,
+            null,
+            StatusEmprestimo.EM_ANDAMENTO
         );
 
-        return await this.emprestimoRepository.criar(novoEmprestimo);
+        const emprestimoSalvo = await this.emprestimoRepository.salvar(emprestimo);
+        if (!emprestimoSalvo) {
+            throw new Error('Erro ao salvar empréstimo');
+        }
+
+        return emprestimoSalvo;
     }
 
     async realizarDevolucao(emprestimoId: number): Promise<boolean> {
@@ -65,57 +73,45 @@ export class EmprestimoService {
             throw new Error('Empréstimo não encontrado');
         }
 
-        const dataDevolucaoEfetiva = new Date();
-        emprestimo.realizarDevolucao(dataDevolucaoEfetiva);
+        if (emprestimo.getStatus() === StatusEmprestimo.DEVOLVIDO) {
+            throw new Error('Este livro já foi devolvido');
+        }
+
+        emprestimo.setDataDevolucaoEfetiva(new Date());
+        emprestimo.setStatus(StatusEmprestimo.DEVOLVIDO);
 
         return await this.emprestimoRepository.atualizar(emprestimo);
+    }
+
+    async verificarDisponibilidadeLivro(livroId: number): Promise<boolean> {
+        const emprestimo = await this.emprestimoRepository.buscarPorLivroId(livroId);
+        return !emprestimo || emprestimo.getStatus() !== StatusEmprestimo.EM_ANDAMENTO;
     }
 
     async buscarEmprestimoPorId(id: number): Promise<Emprestimo | null> {
         return await this.emprestimoRepository.buscarPorId(id);
     }
 
-    async buscarTodosEmprestimos(): Promise<Emprestimo[]> {
-        return await this.emprestimoRepository.buscarTodos();
-    }
-
-    // Verifica se um livro já está emprestado
-    private async verificarLivroEmprestado(livroId: number): Promise<boolean> {
-        const emprestimos = await this.buscarTodosEmprestimos();
-        return this.verificarLivroEmprestadoRecursivo(emprestimos, livroId);
-    }
-
-    private verificarLivroEmprestadoRecursivo(emprestimos: Emprestimo[], livroId: number): boolean {
-        if (emprestimos.length === 0) return false;
-        
-        const [primeiro, ...resto] = emprestimos;
-        if (primeiro.getLivro().getId() === livroId &&
-            primeiro.getStatus() === StatusEmprestimo.EM_ANDAMENTO) {
-            return true;
-        }
-        
-        return this.verificarLivroEmprestadoRecursivo(resto, livroId);
-    }
-
-    // Busca empréstimos por usuário
     async buscarEmprestimosPorUsuario(usuarioId: number): Promise<Emprestimo[]> {
-        const todosEmprestimos = await this.emprestimoRepository.buscarTodos();
-        return todosEmprestimos.filter(emp => emp.getUsuario().getId() === usuarioId);
+        return await this.emprestimoRepository.buscarPorUsuarioId(usuarioId);
     }
 
     async buscarEmprestimosAtrasados(): Promise<Emprestimo[]> {
-        const todosEmprestimos = await this.emprestimoRepository.buscarTodos();
-        return this.filtrarEmprestimosAtrasados(todosEmprestimos);
+        const emprestimos = await this.emprestimoRepository.buscarTodos();
+        const hoje = new Date();
+        
+        return emprestimos.filter(emprestimo => {
+            return emprestimo.getStatus() === StatusEmprestimo.EM_ANDAMENTO &&
+                   emprestimo.getDataDevolucaoPrevista() < hoje;
+        });
     }
 
-    private filtrarEmprestimosAtrasados(emprestimos: Emprestimo[]): Emprestimo[] {
-        if (emprestimos.length === 0) return [];
+    async listarEmprestimos(): Promise<Emprestimo[]> {
+        return await this.emprestimoRepository.buscarTodos();
+    }
 
-        const [primeiro, ...resto] = emprestimos;
-        const estaAtrasado = primeiro.getStatus() === StatusEmprestimo.ATRASADO;
-
-        return estaAtrasado
-            ? [primeiro, ...this.filtrarEmprestimosAtrasados(resto)]
-            : this.filtrarEmprestimosAtrasados(resto);
+    async buscarEmprestimosAtivos(): Promise<Emprestimo[]> {
+        const emprestimos = await this.emprestimoRepository.buscarTodos();
+        return emprestimos.filter(emprestimo => emprestimo.getStatus() === StatusEmprestimo.EM_ANDAMENTO);
     }
 } 
